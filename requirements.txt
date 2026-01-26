@@ -1,4 +1,4 @@
-aiofiles
-aiohttp
-requests
-beautifulsoup4
+aiofiles>=24.1.0
+aiohttp>=3.13.3
+requests>=2.32.3
+beautifulsoup4>=4.12.3
