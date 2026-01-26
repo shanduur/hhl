@@ -1,0 +1,54 @@
+name: Weekly Horus Heresy Gallery Update
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'  # every Monday at 03:00 UTC
+  workflow_dispatch:   # allows manual triggering
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt || true  # in case you have deps
+
+      - name: Run find.py
+        run: python find.py
+
+      - name: Run fetch.py
+        run: python fetch.py
+
+      - name: Run generate.py
+        run: python generate.py
+
+      - name: Commit changes
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add horus_heresy_images/
+          git add horus_heresy_images/index.html
+          git diff --cached --quiet || git commit -m "Weekly update of Horus Heresy gallery"
+
+      - name: Push changes
+        run: git push
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./horus_heresy_images
+          # If you want the URL to be root:
+          # publish_branch: gh-pages
