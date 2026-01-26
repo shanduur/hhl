@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -14,11 +15,11 @@ BASE_LOCAL_DIR = "./horus_heresy_images"
 MAX_CONCURRENT = 8
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; CardImageDownloader/1.0)"}
 
+# Regex for valid characters
+VALID_FILENAME_RE = re.compile(r"[^A-Za-z0-9\-.]+")
+
 
 async def load_factions() -> list[str]:
-    """
-    Read canonical faction names from factions.txt
-    """
     if not os.path.exists(FACTIONS_FILE):
         print(f"[!] Factions file not found: {FACTIONS_FILE}")
         sys.exit(1)
@@ -26,21 +27,20 @@ async def load_factions() -> list[str]:
     async with aiofiles.open(FACTIONS_FILE, "r") as f:
         lines = await f.readlines()
 
-    # Remove empty lines and strip whitespace
-    factions = [line.strip().lower() for line in lines if line.strip()]
-    return factions
+    return [line.strip().lower() for line in lines if line.strip()]
 
 
 def normalize_folder(raw_folder: str, factions: list[str]) -> str:
-    """
-    Match raw_folder to canonical faction folder from loaded factions
-    """
     raw_lower = raw_folder.lower()
     for faction in factions:
         if raw_lower.startswith(faction):
             return faction
-    # fallback: use raw folder as-is
     return raw_folder
+
+
+def sanitize_filename(name: str) -> str:
+    """Replace any character outside [A-Za-z0-9-.] with -"""
+    return VALID_FILENAME_RE.sub("-", name)
 
 
 async def download_image(
@@ -49,16 +49,14 @@ async def download_image(
     sem: asyncio.Semaphore,
     factions: list[str],
 ):
-    """
-    Download single image asynchronously and save into ./<normalized_folder>/<image>
-    """
     path_parts = urlparse(url).path.strip("/").split("/")
 
     try:
         gallery_index = path_parts.index("gallery")
         raw_folder = path_parts[gallery_index + 1]
         folder = normalize_folder(raw_folder, factions)
-        image_name = path_parts[gallery_index + 2]
+        raw_image_name = path_parts[gallery_index + 2]
+        image_name = sanitize_filename(raw_image_name)
     except (ValueError, IndexError):
         print(f"[!] Skipping unexpected URL format: {url}")
         return
@@ -86,7 +84,6 @@ async def download_image(
 
 
 async def main():
-    # Load faction names
     factions = await load_factions()
 
     if not os.path.exists(INPUT_FILE):
